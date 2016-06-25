@@ -14,6 +14,7 @@ use Data::Dumper;
 use Encode;
 
 my $init_command = "1;Analyzer;123123a;1;";
+my $password = 'iamabatman';
 my $debug = 1;
 
 sub logmsg {
@@ -100,7 +101,8 @@ sub create_proxy {
         my ( undef, undef, $msg ) = @_;
         logmsg("transmission error: $msg");
         $host_h->destroy;
-        die;
+        close_all_clients("Server CRASHED. But ill handle it, reconnect");
+        goto LETSTRYAGAIN;
         #TODO: Handle error properly  
     });
 
@@ -137,7 +139,7 @@ sub create_proxy {
                 $client_h->push_write("I dont have connection with server, so i just ignored what you asked me to send. Try again later.\n\n");
             }
         } else {
-            if ($buffer =~ /^11223344/) {
+            if ($buffer =~ /^$password/) {
                 $handles{$client_h} = $client_h;
                 my $ipstring = join ("\n", values %ips);
                 send_to_allclients("\n\nNEW CLIENT AUTHORIZED AND CAN SEND AND RECIEVE COMMANDS NOW " . $ips{$client_h} . "\n\n");
