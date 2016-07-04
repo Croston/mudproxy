@@ -28,15 +28,17 @@ sub in {
   my $in = $_[0];
   Encode::from_to($in, 'cp1251', 'utf-8');
   print $in;
-  print colored(']','blue')."\n";
+  print "\n" . colored(']','blue')."\n";
 }
 
 sub out {
   return unless $debug;
   print colored('OUT ','yellow');
   print colored('[','blue');
-  print ($_[0]);
-  print colored(']','blue')."\n";
+  my $out = $_[0];
+  Encode::from_to($out, 'cp1251', 'utf-8');
+  print $out;
+  print "\n" . colored(']','blue')."\n";
 }
 
 my %handles;
@@ -130,11 +132,15 @@ sub create_proxy {
         $client_h->rbuf = '';
         out($buffer);
         if ($handles{$client_h}) {
+            if ($buffer =~ /^$password/) {
+                $client_h->push_write("Crazy enough, heh? You are trying to send password to server. I blocked it, and didnt send anything to server at all\n");
+                return;
+            }
             if ($host_h) {
                 my $chomped = $buffer;
                 chomp $chomped;
                 $host_h->push_write($buffer);
-                send_to_allclients("[" . $ips{$client_h} . "]: '$chomped'\n", {skip => $client_h} );
+                send_to_allclients("\n[" . $ips{$client_h} . "]: '$chomped'\n", {skip => $client_h} );
             } else {
                 $client_h->push_write("I dont have connection with server, so i just ignored what you asked me to send. Try again later.\n\n");
             }
