@@ -12,33 +12,38 @@ use Carp qw( croak );
 use DDC;
 use Data::Dumper;
 use Encode;
+use POSIX qw(strftime);
 
+
+$| = 1;
 my $init_command = "1;Analyzer;123123a;1;";
-my $password = 'iamabatman';
+my $password = '';
 my $debug = 1;
 
 sub logmsg {
-  print colored($_[0],'yellow')."\n";
+  print "^-" . localtime . " $_[0]\n";
+#  print colored($_[0],'yellow')."\n";
 }
 
 sub in {
   return unless $debug;  
-  print colored(' IN ','yellow');
-  print colored('[','blue');
+#  print colored(' IN ','yellow');
+#  print colored('[','blue');
   my $in = $_[0];
   Encode::from_to($in, 'cp1251', 'utf-8');
-  print $in;
-  print "\n" . colored(']','blue')."\n";
+  $in =~ s/ящ$//g;
+  print "<- " . localtime . " $in\n";
+#  print "\n" . colored(']','blue')."\n";
 }
 
 sub out {
   return unless $debug;
-  print colored('OUT ','yellow');
-  print colored('[','blue');
+  #print colored('OUT ','yellow');
+  #print colored('[','blue');
   my $out = $_[0];
   Encode::from_to($out, 'cp1251', 'utf-8');
-  print $out;
-  print "\n" . colored(']','blue')."\n";
+  print "-> " . localtime . " $out\n";
+  #print "\n" . colored(']','blue')."\n";
 }
 
 my %handles;
@@ -60,7 +65,7 @@ sub close_all_clients {
         $client->destroy;
     }
     %handles = ();
-    %ips = {};
+    %ips = ();
 }
 
 sub create_proxy {
@@ -85,6 +90,13 @@ sub create_proxy {
       $host_h = AnyEvent::Handle->new(
           fh => $host_fh,
       );
+
+      #$host_h->on_rtimeout(sub {
+      #        logmsg("No read activity, ill reconnect!");
+      #        $host_h->destroy;
+      #        close_all_clients("Server is silent, i feel lonely. Ill reconnect.");
+      #        goto LETSTRYAGAIN;
+      #});
 
       $host_h->on_read(sub {
         my $buffer    = $host_h->rbuf;
@@ -148,6 +160,7 @@ sub create_proxy {
             if ($buffer =~ /^$password/) {
                 $handles{$client_h} = $client_h;
                 my $ipstring = join ("\n", values %ips);
+                logmsg("Client authorized: $ipstring\n");
                 send_to_allclients("\n\nNEW CLIENT AUTHORIZED AND CAN SEND AND RECIEVE COMMANDS NOW " . $ips{$client_h} . "\n\n");
                 $client_h->push_write("Good, you are authenticated now.\n Currently online clients: $ipstring\nHere is what we have sent to the client before you connected\n\n: $latest_sent_buffer");
         } else {
@@ -158,7 +171,7 @@ sub create_proxy {
 
     $client_h->on_error(sub {
         my ( undef, undef, $msg ) = @_;
-        logmsg("transmission error: $msg");
+        logmsg("transmission error: $msg. " . $ips{$client_h});
         send_to_allclients("\n\n " . $ips{$client_h} . " disconnected.\n",  {skip => $client_h});
         $client_h->destroy;
         delete $handles{$client_h};
@@ -166,7 +179,7 @@ sub create_proxy {
     });
 
       $client_h->on_eof(sub {
-        logmsg("client closed connection");
+        logmsg("client closed connection: " . $ips{$client_h});
         send_to_allclients("\n\n " . $ips{$client_h} . " disconnected.\n",  {skip => $client_h});
         $client_h->destroy;
 
